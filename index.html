@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Balance Beam Study App</title>
+  <link
+    href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <style>
+    .nav-btns {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    .hidden { display: none; }
+    .indicator-on { color: green; }
+    .indicator-off { color: red; }
+    .screen { min-height: calc(100vh - 120px); }
+    .trial-box {
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      min-height: 100px;
+    }
+    .trial-box h5 {
+      margin-bottom: 0.5rem;
+    }
+    .blank-placeholder {
+      color: #666;
+      font-style: italic;
+    }
+    #clearDataBtn, #exportDataBtn {
+      margin-top: 1rem;
+    }
+    /* Space under Participant Info form for New Participant button */
+    #newParticipantContainer {
+      text-align: center;
+      margin-top: 1.5rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container mt-4">
+
+    <!--=== Screen 1: Participant Info ===-->
+    <div id="screen-participant" class="screen">
+      <h2 class="text-center mb-4">Participant Info</h2>
+      <form id="participantForm">
+        <div class="mb-3">
+          <label for="participantName" class="form-label">Participant Name</label>
+          <input type="text" id="participantName" class="form-control" required />
+        </div>
+        <div class="mb-3">
+          <label for="ageGroup" class="form-label">Age Group</label>
+          <select id="ageGroup" class="form-select" required>
+            <option value="" selected disabled>Choose...</option>
+            <option value="Young">Young (18–30)</option>
+            <option value="Old">Old (65–89)</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="beamSize" class="form-label">Beam Size</label>
+          <select id="beamSize" class="form-select" required>
+            <option value="" selected disabled>Choose...</option>
+            <option>1in</option>
+            <option>1.5in</option>
+            <option>2in</option>
+            <option>3in</option>
+            <option>4in</option>
+            <option>5in</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="parameter" class="form-label">Parameter</label>
+          <select id="parameter" class="form-select" required>
+            <option value="" selected disabled>Choose...</option>
+            <option>7.5/0.75</option>
+            <option>7.5/1.5</option>
+            <option>7.5/3</option>
+            <option>3.75/1.5</option>
+            <option>15/1.5</option>
+            <option>Control no goggles</option>
+            <option>Control with goggles</option>
+            <option>Arms crossed</option>
+            <option>90% occlusion</option>
+            <option>80% occlusion</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="sessionSelect" class="form-label">Session</label>
+          <select id="sessionSelect" class="form-select" required>
+            <option value="" selected disabled>Choose...</option>
+            <option>First</option>
+            <option>Retention</option>
+          </select>
+        </div>
+      </form>
+
+      <div id="newParticipantContainer">
+        <button id="newParticipantBtn" class="btn btn-secondary">
+          New Participant
+        </button>
+      </div>
+    </div>
+
+    <!--=== Screen 2: Fall Tracker ===-->
+    <div id="screen-falltracker" class="screen hidden">
+      <h2 class="text-center mb-4">Fall Tracker</h2>
+
+      <div class="mb-3">
+        <label for="trialSelect" class="form-label">Trial</label>
+        <select id="trialSelect" class="form-select" required>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label for="minutesInput" class="form-label">Minutes</label>
+        <input
+          type="number"
+          id="minutesInput"
+          class="form-control"
+          placeholder="Enter number of minutes"
+          min="1"
+          required
+        />
+      </div>
+
+      <div class="d-flex justify-content-center align-items-center mb-3">
+        <h2 id="timerDisplay" class="me-3">00:00</h2>
+        <button id="startButton" class="btn btn-success">Start</button>
+      </div>
+
+      <div class="d-flex justify-content-center mb-3">
+        <button id="onBeamButton" class="btn btn-primary mx-2" disabled>On Beam</button>
+        <button id="fallButton" class="btn btn-danger mx-2" disabled>Fall</button>
+      </div>
+
+      <div class="d-flex justify-content-center mb-3">
+        <button id="pauseButton" class="btn btn-warning mx-2" disabled>Pause</button>
+        <button id="clearButton" class="btn btn-secondary mx-2" disabled>Clear Trial</button>
+        <button id="resetButton" class="btn btn-secondary mx-2" disabled>Reset</button>
+      </div>
+
+      <div class="text-center mb-3">
+        <h4 id="indicator" class="indicator-off">Off Beam</h4>
+      </div>
+
+      <div class="text-center mb-3">
+        <h5 id="fallsCount">Falls: 0</h5>
+        <h5 id="onBeamTime">On Beam Time: 0.000s</h5>
+      </div>
+
+      <div class="text-center">
+        <button id="submitTrialButton" class="btn btn-success" disabled>Submit Trial</button>
+      </div>
+    </div>
+
+    <!--=== Screen 3: Summary / Data Preview ===-->
+    <div id="screen-summary" class="screen hidden">
+      <h2 class="text-center mb-4">Participant & Trial Summary</h2>
+      <div id="summaryContent"></div>
+      <div class="d-flex justify-content-center gap-3">
+        <button id="clearDataBtn" class="btn btn-danger">Clear Data</button>
+        <button id="exportDataBtn" class="btn btn-info">Export Data</button>
+      </div>
+    </div>
+
+    <div class="nav-btns d-flex gap-3">
+      <button id="toParticipantBtn" class="btn btn-outline-primary">Participant Info</button>
+      <button id="toFallTrackerBtn" class="btn btn-outline-primary">Fall Tracker</button>
+      <button id="toSummaryBtn" class="btn btn-outline-primary">Summary</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    const state = {
+      participant: { name: "", ageGroup: "", beamSize: "", parameter: "", session: "" },
+      trialData: {
+        /**
+         * "<trialName>": {
+         *   falls: Number,
+         *   onBeamTime: Number,
+         *   fallTimestamps: [Number, ...],
+         *   duration: Number,
+         *   completed: Boolean
+         * }
+         */
+      },
+      currentTrial: null,
+      timer: {
+        startSeconds: 0,
+        remainingSeconds: 0,
+        isRunning: false,
+        isPaused: false,
+        intervalId: null,
+        lastOnBeamTime: null,
+        timerStartTime: null,
+      },
+    };
+
+    const screens = {
+      participant: document.getElementById("screen-participant"),
+      falltracker: document.getElementById("screen-falltracker"),
+      summary: document.getElementById("screen-summary"),
+    };
+    const navBtns = {
+      toParticipant: document.getElementById("toParticipantBtn"),
+      toFallTracker: document.getElementById("toFallTrackerBtn"),
+      toSummary: document.getElementById("toSummaryBtn"),
+    };
+
+    const participantForm = document.getElementById("participantForm");
+    const participantNameInput = document.getElementById("participantName");
+    const ageGroupSelect = document.getElementById("ageGroup");
+    const beamSizeSelect = document.getElementById("beamSize");
+    const parameterSelect = document.getElementById("parameter");
+    const sessionSelect = document.getElementById("sessionSelect");
+    const newParticipantBtn = document.getElementById("newParticipantBtn");
+
+    const trialSelect = document.getElementById("trialSelect");
+    const minutesInput = document.getElementById("minutesInput");
+    const timerDisplay = document.getElementById("timerDisplay");
+    const startButton = document.getElementById("startButton");
+    const pauseButton = document.getElementById("pauseButton");
+    const fallButton = document.getElementById("fallButton");
+    const onBeamButton = document.getElementById("onBeamButton");
+    const clearButton = document.getElementById("clearButton");
+    const resetButton = document.getElementById("resetButton");
+    const submitTrialButton = document.getElementById("submitTrialButton");
+    const indicator = document.getElementById("indicator");
+    const fallsCountDisplay = document.getElementById("fallsCount");
+    const onBeamTimeDisplay = document.getElementById("onBeamTime");
+
+    const summaryContent = document.getElementById("summaryContent");
+    const clearDataBtn = document.getElementById("clearDataBtn");
+    const exportDataBtn = document.getElementById("exportDataBtn");
+
+    function showScreen(name) {
+      Object.keys(screens).forEach(key => {
+        screens[key].classList.toggle("hidden", key !== name);
+      });
+      if (name === "summary") {
+        renderSummaryPlaceholders();
+      }
+    }
+
+    navBtns.toParticipant.addEventListener("click", () => showScreen("participant"));
+    navBtns.toFallTracker.addEventListener("click", () => {
+      if (!isParticipantInfoComplete()) {
+        alert("Please complete all Participant Info fields before proceeding.");
+        return;
+      }
+      populateTrialOptions();
+      showScreen("falltracker");
+    });
+    navBtns.toSummary.addEventListener("click", () => {
+      if (!isParticipantInfoComplete()) {
+        if (!confirm("Participant Info is incomplete. Summary will show blanks. Continue anyway?")) {
+          return;
+        }
+      }
+      showScreen("summary");
+    });
+
+    function isParticipantInfoComplete() {
+      return participantNameInput.value.trim() &&
+             ageGroupSelect.value &&
+             beamSizeSelect.value &&
+             parameterSelect.value &&
+             sessionSelect.value;
+    }
+
+    function updateParticipantState() {
+      state.participant.name = participantNameInput.value.trim();
+      state.participant.ageGroup = ageGroupSelect.value;
+      state.participant.beamSize = beamSizeSelect.value;
+      state.participant.parameter = parameterSelect.value;
+      state.participant.session = sessionSelect.value;
+    }
+
+    participantForm.addEventListener("change", () => {
+      updateParticipantState();
+    });
+
+    newParticipantBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to start a new participant?")) {
+        window.location.reload();
+      }
+    });
+
+    function populateTrialOptions() {
+      trialSelect.innerHTML = "";
+      const session = state.participant.session;
+      const age = state.participant.ageGroup;
+      let options = [];
+      if (session === "First") {
+        if (age === "Young") {
+          options = ["Pre-Test", "Trial 1", "Trial 2", "Trial 3", "Post-Test"];
+        } else {
+          options = ["Pre-Test", "Trial 1", "Trial 2", "Trial 3", "Trial 4", "Trial 5", "Trial 6", "Post-Test"];
+        }
+      } else {
+        options = ["Retention"];
+      }
+      options.forEach(opt => {
+        const el = document.createElement("option");
+        el.value = opt;
+        el.textContent = opt;
+        trialSelect.appendChild(el);
+      });
+    }
+
+    function formatTime(totalSec) {
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    }
+
+    function updateTimerDisplay() {
+      timerDisplay.textContent = formatTime(state.timer.remainingSeconds);
+    }
+
+    function updateIndicator() {
+      if (state.timer.isRunning && !state.timer.isPaused && state.timer.lastOnBeamTime) {
+        indicator.textContent = "On Beam";
+        indicator.className = "indicator-on";
+      } else {
+        indicator.textContent = "Off Beam";
+        indicator.className = "indicator-off";
+      }
+    }
+
+    function updateFallOnBeamButtons() {
+      if (!state.timer.isRunning || state.timer.isPaused) {
+        onBeamButton.disabled = true;
+        fallButton.disabled = true;
+      } else {
+        if (state.timer.lastOnBeamTime) {
+          onBeamButton.disabled = true;
+          fallButton.disabled = false;
+        } else {
+          onBeamButton.disabled = false;
+          fallButton.disabled = true;
+        }
+      }
+    }
+
+    function updateButtonsForRun(running) {
+      startButton.disabled = running;
+      pauseButton.disabled = !running;
+      clearButton.disabled = running;
+      resetButton.disabled = running;
+      navBtns.toParticipant.disabled = running;
+      navBtns.toSummary.disabled = running;
+      updateFallOnBeamButtons();
+    }
+
+    startButton.addEventListener("click", () => {
+      const chosenTrial = trialSelect.value;
+      if (!chosenTrial) {
+        alert("Please select a trial.");
+        return;
+      }
+      const existing = state.trialData[chosenTrial];
+      if (existing && existing.completed) {
+        if (!confirm("Are you sure you want to overwrite the data for this trial?")) return;
+      }
+      const mins = parseInt(minutesInput.value, 10);
+      if (isNaN(mins) || mins <= 0) {
+        alert("Please enter a valid number of minutes.");
+        return;
+      }
+      state.currentTrial = chosenTrial;
+      const durationSec = mins * 60;
+      state.trialData[chosenTrial] = {
+        falls: 0,
+        onBeamTime: 0,
+        fallTimestamps: [],
+        duration: durationSec,
+        completed: false,
+      };
+
+      state.timer.startSeconds = durationSec;
+      state.timer.remainingSeconds = durationSec;
+      state.timer.isRunning = true;
+      state.timer.isPaused = false;
+      state.timer.timerStartTime = new Date();
+      state.timer.lastOnBeamTime = new Date();
+
+      updateTimerDisplay();
+      updateIndicator();
+      updateButtonsForRun(true);
+      submitTrialButton.disabled = true;
+
+      state.timer.intervalId = setInterval(() => {
+        if (state.timer.isPaused) return;
+        if (state.timer.remainingSeconds > 0) {
+          state.timer.remainingSeconds--;
+          updateTimerDisplay();
+        } else {
+          endTrialSession();
+        }
+      }, 1000);
+    });
+
+    pauseButton.addEventListener("click", () => {
+      if (!state.timer.isRunning) return;
+      if (!state.timer.isPaused) {
+        state.timer.isPaused = true;
+        pauseButton.textContent = "Resume";
+        if (state.timer.lastOnBeamTime) {
+          const now = new Date();
+          const delta = (now - state.timer.lastOnBeamTime)/1000;
+          state.trialData[state.currentTrial].onBeamTime += delta;
+          state.timer.lastOnBeamTime = null;
+          onBeamTimeDisplay.textContent = `On Beam Time: ${state.trialData[state.currentTrial].onBeamTime.toFixed(3)}s`;
+        }
+      } else {
+        state.timer.isPaused = false;
+        pauseButton.textContent = "Pause";
+        state.timer.lastOnBeamTime = new Date();
+      }
+      updateIndicator();
+      updateFallOnBeamButtons();
+      if (!state.timer.isRunning || state.timer.isPaused) {
+        navBtns.toParticipant.disabled = false;
+        navBtns.toSummary.disabled = false;
+        clearButton.disabled = false;
+        resetButton.disabled = false;
+      }
+    });
+
+    fallButton.addEventListener("click", () => {
+      if (!state.timer.isRunning || state.timer.isPaused) return;
+      const trialObj = state.trialData[state.currentTrial];
+      trialObj.falls++;
+      fallsCountDisplay.textContent = `Falls: ${trialObj.falls}`;
+
+      if (state.timer.lastOnBeamTime) {
+        const now = new Date();
+        const delta = (now - state.timer.lastOnBeamTime)/1000;
+        trialObj.onBeamTime += delta;
+        onBeamTimeDisplay.textContent = `On Beam Time: ${trialObj.onBeamTime.toFixed(3)}s`;
+        state.timer.lastOnBeamTime = null;
+      }
+      const now = new Date();
+      const elapsedMs = now - state.timer.timerStartTime;
+      const elapsedSec = elapsedMs / 1000;
+      trialObj.fallTimestamps.push(parseFloat(elapsedSec.toFixed(3)));
+      updateIndicator();
+      updateFallOnBeamButtons();
+    });
+
+    onBeamButton.addEventListener("click", () => {
+      if (!state.timer.isRunning || state.timer.isPaused) return;
+      state.timer.lastOnBeamTime = new Date();
+      updateIndicator();
+      updateFallOnBeamButtons();
+    });
+
+    clearButton.addEventListener("click", () => {
+      if (!state.timer.isRunning) return;
+      if (!state.timer.isPaused) pauseButton.click();
+      if (confirm("Are you sure you want to clear this trial’s data?")) {
+        delete state.trialData[state.currentTrial];
+        fallsCountDisplay.textContent = "Falls: 0";
+        onBeamTimeDisplay.textContent = "On Beam Time: 0.000s";
+        resetButton.click();
+      } else {
+        pauseButton.click();
+      }
+    });
+
+    resetButton.addEventListener("click", () => {
+      if (state.timer.intervalId) clearInterval(state.timer.intervalId);
+      state.timer.isRunning = false;
+      state.timer.isPaused = false;
+      state.timer.intervalId = null;
+      state.timer.lastOnBeamTime = null;
+      state.timer.remainingSeconds = 0;
+      state.timer.timerStartTime = null;
+      timerDisplay.textContent = "00:00";
+
+      pauseButton.textContent = "Pause";
+      updateButtonsForRun(false);
+      updateFallOnBeamButtons();
+      indicator.textContent = "Off Beam";
+      indicator.className = "indicator-off";
+      fallsCountDisplay.textContent = "Falls: 0";
+      onBeamTimeDisplay.textContent = "On Beam Time: 0.000s";
+
+      state.currentTrial = null;
+      submitTrialButton.disabled = true;
+    });
+
+    function endTrialSession() {
+      clearInterval(state.timer.intervalId);
+      state.timer.isRunning = false;
+      state.timer.intervalId = null;
+
+      const trialObj = state.trialData[state.currentTrial];
+      if (state.timer.lastOnBeamTime) {
+        const now = new Date();
+        const delta = (now - state.timer.lastOnBeamTime)/1000;
+        trialObj.onBeamTime += delta;
+        onBeamTimeDisplay.textContent = `On Beam Time: ${trialObj.onBeamTime.toFixed(3)}s`;
+        state.timer.lastOnBeamTime = null;
+      }
+
+      trialObj.completed = true;
+      updateIndicator();
+      updateButtonsForRun(false);
+      submitTrialButton.disabled = false;
+      alert(
+        `Time’s up for "${state.currentTrial}".\n` +
+        `Falls: ${trialObj.falls}\n` +
+        `On Beam Time: ${trialObj.onBeamTime.toFixed(3)}s`
+      );
+    }
+
+    submitTrialButton.addEventListener("click", () => {
+      const trialName = state.currentTrial;
+      if (!trialName) {
+        alert("No trial selected.");
+        return;
+      }
+      const obj = state.trialData[trialName];
+      if (!obj || !obj.completed) {
+        alert("Cannot submit: Trial has not finished yet.");
+        return;
+      }
+      renderSummaryPlaceholders();
+    });
+
+    function renderSummaryPlaceholders() {
+      summaryContent.innerHTML = "";
+
+      if (isParticipantInfoComplete()) {
+        const p = state.participant;
+        const pi = document.createElement("div");
+        pi.className = "border-bottom pb-3 mb-3";
+        pi.innerHTML = `
+          <p><strong>Participant Name:</strong> ${p.name}</p>
+          <p><strong>Age Group:</strong> ${p.ageGroup}</p>
+          <p><strong>Beam Size:</strong> ${p.beamSize}</p>
+          <p><strong>Parameter:</strong> ${p.parameter}</p>
+          <p><strong>Session:</strong> ${p.session}</p>
+        `;
+        summaryContent.appendChild(pi);
+
+        let trialList = [];
+        const session = p.session;
+        const age = p.ageGroup;
+        if (session === "First") {
+          if (age === "Young") {
+            trialList = ["Pre-Test", "Trial 1", "Trial 2", "Trial 3", "Post-Test"];
+          } else {
+            trialList = ["Pre-Test", "Trial 1", "Trial 2", "Trial 3", "Trial 4", "Trial 5", "Trial 6", "Post-Test"];
+          }
+        } else {
+          trialList = ["Retention"];
+        }
+
+        trialList.forEach(tName => {
+          const safeId = makeSafeId(tName);
+          const existingData = state.trialData[tName];
+          const box = document.createElement("div");
+          box.className = "trial-box";
+          box.id = `trial-box-${safeId}`;
+
+          if (existingData && existingData.completed) {
+            box.innerHTML = `
+              <h5>${tName}</h5>
+              <p><strong>Falls:</strong> ${existingData.falls}</p>
+              <p><strong>On Beam Time:</strong> ${existingData.onBeamTime.toFixed(3)}s</p>
+              <p><strong>Fall Timestamps (s):</strong> ${existingData.fallTimestamps.map(x => x.toFixed(3)).join(", ") || "None"}</p>
+            `;
+          } else {
+            box.innerHTML = `
+              <h5>${tName}</h5>
+              <p class="blank-placeholder">No data submitted yet.</p>
+            `;
+          }
+          summaryContent.appendChild(box);
+        });
+      } else {
+        const warning = document.createElement("p");
+        warning.className = "text-warning";
+        warning.textContent = "Finish filling in Participant Info to see trial placeholders.";
+        summaryContent.appendChild(warning);
+      }
+    }
+
+    clearDataBtn.addEventListener("click", () => {
+      if (!confirm("Are you sure you want to clear the data?")) return;
+      state.trialData = {};
+      renderSummaryPlaceholders();
+    });
+
+    exportDataBtn.addEventListener("click", () => {
+      if (!isParticipantInfoComplete()) {
+        alert("Please complete Participant Info first.");
+        return;
+      }
+
+      const p = state.participant;
+      let trialList = [];
+      if (p.session === "First") {
+        if (p.ageGroup === "Young") {
+          trialList = ["Pre-Test", "Trial 1", "Trial 2", "Trial 3", "Post-Test"];
+        } else {
+          trialList = ["Pre-Test", "Trial 1", "Trial 2", "Trial 3", "Trial 4", "Trial 5", "Trial 6", "Post-Test"];
+        }
+      } else {
+        trialList = ["Retention"];
+      }
+
+      const rowMap = {
+        "Pre-Test": 7,
+        "Trial 1": 8,
+        "Trial 2": 9,
+        "Trial 3": 10,
+        "Trial 4": 11,
+        "Trial 5": 12,
+        "Trial 6": 13,
+        "Post-Test": 14,
+        "Retention": 15
+      };
+
+      fetch("template.xlsx")
+        .then(res => {
+          if (!res.ok) throw new Error("Could not load template.xlsx—make sure it’s in the same folder.");
+          return res.arrayBuffer();
+        })
+        .then(arrayBuffer => {
+          const workbook = XLSX.read(arrayBuffer, { type: "array", cellStyles: true });
+          const sheetName = workbook.SheetNames[0];
+          const ws = workbook.Sheets[sheetName];
+
+          ws["B1"] = { t: "s", v: p.name };
+          ws["B3"] = { t: "s", v: p.ageGroup };
+          ws["D2"] = { t: "s", v: p.parameter };
+          ws["D3"] = { t: "s", v: p.beamSize };
+
+          trialList.forEach(tName => {
+            const obj = state.trialData[tName];
+            const rowNum = rowMap[tName];
+            if (!rowNum) return;
+
+            if (obj && obj.completed) {
+              const stampCell = `B${rowNum}`;
+              ws[stampCell] = { t: "s",
+                                v: obj.fallTimestamps.map(x => x.toFixed(3)).join(",") };
+
+              const fallsCell = `J${rowNum}`;
+              ws[fallsCell] = { t: "n", v: obj.falls };
+
+              const onBeamCell = `K${rowNum}`;
+              ws[onBeamCell] = { t: "n", v: parseFloat(obj.onBeamTime.toFixed(3)) };
+
+              const offBeam = obj.duration - obj.onBeamTime;
+              const offBeamCell = `L${rowNum}`;
+              ws[offBeamCell] = { t: "n", v: parseFloat(offBeam.toFixed(3)) };
+            }
+          });
+
+          const safeName = p.name.replace(/\s+/g, "_");
+          const filename = `${safeName}_${p.session}_data.xlsx`;
+          XLSX.writeFile(workbook, filename);
+        })
+        .catch(err => {
+          console.error(err);
+          alert("Error loading template.xlsx. Make sure `template.xlsx` is in the same folder.");
+        });
+    });
+
+    function makeSafeId(str) {
+      return str.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9\-]/g, "").toLowerCase();
+    }
+
+    showScreen("participant");
+  </script>
+</body>
+</html>
