@@ -189,6 +189,7 @@
          *   falls: Number,
          *   onBeamTime: Number,
          *   fallTimestamps: [Number, ...],
+         *   onBeamTimestamps: [Number, ...],
          *   duration: Number,
          *   completed: Boolean
          * }
@@ -378,22 +379,28 @@
         alert("Please enter a valid number of minutes.");
         return;
       }
+
       state.currentTrial = chosenTrial;
       const durationSec = mins * 60;
       state.trialData[chosenTrial] = {
         falls: 0,
         onBeamTime: 0,
         fallTimestamps: [],
+        onBeamTimestamps: [],   // ← ADDED
         duration: durationSec,
         completed: false,
       };
 
+      // Initialize timer
       state.timer.startSeconds = durationSec;
       state.timer.remainingSeconds = durationSec;
       state.timer.isRunning = true;
       state.timer.isPaused = false;
       state.timer.timerStartTime = new Date();
-      state.timer.lastOnBeamTime = new Date();
+      state.timer.lastOnBeamTime = new Date(); // user starts on beam
+
+      // Record first on-beam timestamp = 0
+      state.trialData[chosenTrial].onBeamTimestamps.push(0.000);
 
       updateTimerDisplay();
       updateIndicator();
@@ -414,19 +421,30 @@
     pauseButton.addEventListener("click", () => {
       if (!state.timer.isRunning) return;
       if (!state.timer.isPaused) {
+        // PAUSE logic
         state.timer.isPaused = true;
         pauseButton.textContent = "Resume";
         if (state.timer.lastOnBeamTime) {
           const now = new Date();
-          const delta = (now - state.timer.lastOnBeamTime)/1000;
+          const delta = (now - state.timer.lastOnBeamTime) / 1000;
           state.trialData[state.currentTrial].onBeamTime += delta;
           state.timer.lastOnBeamTime = null;
           onBeamTimeDisplay.textContent = `On Beam Time: ${state.trialData[state.currentTrial].onBeamTime.toFixed(3)}s`;
         }
       } else {
+        // RESUME logic: record a new "On Beam" timestamp
         state.timer.isPaused = false;
         pauseButton.textContent = "Pause";
-        state.timer.lastOnBeamTime = new Date();
+        const now = new Date();
+        state.timer.lastOnBeamTime = now;
+
+        const trialObj = state.trialData[state.currentTrial];
+        let elapsedSec = (now - state.timer.timerStartTime) / 1000;
+        // If onBeamTimestamps is empty—which won't happen because start pushed 0—just in case:
+        if (trialObj.onBeamTimestamps.length === 0) {
+          elapsedSec = 0;
+        }
+        trialObj.onBeamTimestamps.push(parseFloat(elapsedSec.toFixed(3)));
       }
       updateIndicator();
       updateFallOnBeamButtons();
@@ -438,6 +456,24 @@
       }
     });
 
+    onBeamButton.addEventListener("click", () => {
+      if (!state.timer.isRunning || state.timer.isPaused) return;
+
+      const now = new Date();
+      state.timer.lastOnBeamTime = now;
+
+      // Record "On Beam" timestamp
+      const trialObj = state.trialData[state.currentTrial];
+      let elapsedSec = (now - state.timer.timerStartTime) / 1000;
+      if (trialObj.onBeamTimestamps.length === 0) {
+        elapsedSec = 0;
+      }
+      trialObj.onBeamTimestamps.push(parseFloat(elapsedSec.toFixed(3)));
+
+      updateIndicator();
+      updateFallOnBeamButtons();
+    });
+
     fallButton.addEventListener("click", () => {
       if (!state.timer.isRunning || state.timer.isPaused) return;
       const trialObj = state.trialData[state.currentTrial];
@@ -446,22 +482,16 @@
 
       if (state.timer.lastOnBeamTime) {
         const now = new Date();
-        const delta = (now - state.timer.lastOnBeamTime)/1000;
+        const delta = (now - state.timer.lastOnBeamTime) / 1000;
         trialObj.onBeamTime += delta;
         onBeamTimeDisplay.textContent = `On Beam Time: ${trialObj.onBeamTime.toFixed(3)}s`;
         state.timer.lastOnBeamTime = null;
       }
+
       const now = new Date();
       const elapsedMs = now - state.timer.timerStartTime;
       const elapsedSec = elapsedMs / 1000;
       trialObj.fallTimestamps.push(parseFloat(elapsedSec.toFixed(3)));
-      updateIndicator();
-      updateFallOnBeamButtons();
-    });
-
-    onBeamButton.addEventListener("click", () => {
-      if (!state.timer.isRunning || state.timer.isPaused) return;
-      state.timer.lastOnBeamTime = new Date();
       updateIndicator();
       updateFallOnBeamButtons();
     });
@@ -509,8 +539,13 @@
       const trialObj = state.trialData[state.currentTrial];
       if (state.timer.lastOnBeamTime) {
         const now = new Date();
-        const delta = (now - state.timer.lastOnBeamTime)/1000;
+        // Add on-beam time for final segment
+        const delta = (now - state.timer.lastOnBeamTime) / 1000;
         trialObj.onBeamTime += delta;
+
+        // Record a final fall timestamp at exactly full duration
+        trialObj.fallTimestamps.push(parseFloat(trialObj.duration.toFixed(3)));
+
         onBeamTimeDisplay.textContent = `On Beam Time: ${trialObj.onBeamTime.toFixed(3)}s`;
         state.timer.lastOnBeamTime = null;
       }
@@ -582,6 +617,7 @@
               <p><strong>Falls:</strong> ${existingData.falls}</p>
               <p><strong>On Beam Time:</strong> ${existingData.onBeamTime.toFixed(3)}s</p>
               <p><strong>Fall Timestamps (s):</strong> ${existingData.fallTimestamps.map(x => x.toFixed(3)).join(", ") || "None"}</p>
+              <p><strong>On Beam Timestamps (s):</strong> ${existingData.onBeamTimestamps.map(x => x.toFixed(3)).join(", ") || "None"}</p>
             `;
           } else {
             box.innerHTML = `
@@ -623,16 +659,17 @@
         trialList = ["Retention"];
       }
 
-      const rowMap = {
-        "Pre-Test": 7,
-        "Trial 1": 8,
-        "Trial 2": 9,
-        "Trial 3": 10,
-        "Trial 4": 11,
-        "Trial 5": 12,
-        "Trial 6": 13,
-        "Post-Test": 14,
-        "Retention": 15
+      // New cell mappings for each trial:
+      const exportMap = {
+        "Pre-Test":      { row: 7,  fallStampCol: "R", onBeamStampCol: "S" },
+        "Trial 1":       { row: 8,  fallStampCol: "U", onBeamStampCol: "V" },
+        "Trial 2":       { row: 9,  fallStampCol: "X", onBeamStampCol: "Y" },
+        "Trial 3":       { row: 10, fallStampCol: "AA", onBeamStampCol: "AB" },
+        "Trial 4":       { row: 11, fallStampCol: "AD", onBeamStampCol: "AE" },
+        "Trial 5":       { row: 12, fallStampCol: "AG", onBeamStampCol: "AH" },
+        "Trial 6":       { row: 13, fallStampCol: "AJ", onBeamStampCol: "AK" },
+        "Post-Test":     { row: 14, fallStampCol: "AM", onBeamStampCol: "AN" },
+        "Retention":     { row: 15, fallStampCol: "AP", onBeamStampCol: "AQ" },
       };
 
       fetch("template.xlsx")
@@ -645,6 +682,7 @@
           const sheetName = workbook.SheetNames[0];
           const ws = workbook.Sheets[sheetName];
 
+          // Participant info:
           ws["B1"] = { t: "s", v: p.name };
           ws["B3"] = { t: "s", v: p.ageGroup };
           ws["D2"] = { t: "s", v: p.parameter };
@@ -652,23 +690,34 @@
 
           trialList.forEach(tName => {
             const obj = state.trialData[tName];
-            const rowNum = rowMap[tName];
-            if (!rowNum) return;
+            const mapEntry = exportMap[tName];
+            if (!mapEntry) return;
 
+            const rowNum = mapEntry.row;
+            // Write total falls in column B:
             if (obj && obj.completed) {
-              const stampCell = `B${rowNum}`;
-              ws[stampCell] = { t: "s",
-                                v: obj.fallTimestamps.map(x => x.toFixed(3)).join(",") };
+              ws[`B${rowNum}`] = { t: "n", v: obj.falls };
 
-              const fallsCell = `J${rowNum}`;
-              ws[fallsCell] = { t: "n", v: obj.falls };
+              // Total Time On Beam in column J:
+              ws[`J${rowNum}`] = { t: "n", v: parseFloat(obj.onBeamTime.toFixed(3)) };
 
-              const onBeamCell = `K${rowNum}`;
-              ws[onBeamCell] = { t: "n", v: parseFloat(obj.onBeamTime.toFixed(3)) };
-
+              // Total Time Off Beam in column K:
               const offBeam = obj.duration - obj.onBeamTime;
-              const offBeamCell = `L${rowNum}`;
-              ws[offBeamCell] = { t: "n", v: parseFloat(offBeam.toFixed(3)) };
+              ws[`K${rowNum}`] = { t: "n", v: parseFloat(offBeam.toFixed(3)) };
+
+              // Write Fall Time Stamps vertically starting at (fallStampCol, row 8):
+              const fallCol = mapEntry.fallStampCol;
+              for (let i = 0; i < obj.fallTimestamps.length; i++) {
+                const cellRef = `${fallCol}${8 + i}`;
+                ws[cellRef] = { t: "n", v: parseFloat(obj.fallTimestamps[i].toFixed(3)) };
+              }
+
+              // Write On Beam Time Stamps vertically starting at (onBeamStampCol, row 8):
+              const onBeamCol = mapEntry.onBeamStampCol;
+              for (let i = 0; i < obj.onBeamTimestamps.length; i++) {
+                const cellRef = `${onBeamCol}${8 + i}`;
+                ws[cellRef] = { t: "n", v: parseFloat(obj.onBeamTimestamps[i].toFixed(3)) };
+              }
             }
           });
 
